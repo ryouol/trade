@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package trade.marketdata;
+
+option go_package = "github.com/ryouol/trade/gen/go/marketdata";
+
+// Venue identity. Mirrored in compliance.allowed_venues config.
+enum Venue {
+  VENUE_UNSPECIFIED = 0;
+  VENUE_KALSHI = 1;
+  VENUE_POLY_US = 2;
+  VENUE_POLY_INTL = 3;  // disabled in v1
+}
+
+enum Side {
+  SIDE_UNSPECIFIED = 0;
+  SIDE_BID = 1;  // YES book bid (also "buy YES")
+  SIDE_ASK = 2;  // YES book ask (also "sell YES" == "buy NO")
+}
+
+// MarketRef is the unique identifier for a tradeable market.
+// On Kalshi the canonical id is the ticker. On Polymarket US it is the slug.
+// We carry both ticker and slug fields so adapters need no logic-by-venue.
+message MarketRef {
+  Venue venue = 1;
+  string ticker = 2;          // Kalshi: e.g. KXPRESPARTY-24NOV05-DEM
+  string slug = 3;            // PM US: e.g. super-bowl-lix-chiefs-vs-eagles
+  string event_ticker = 4;    // Kalshi: parent event id
+  int64 close_ts_ms = 5;      // expected resolution timestamp
+  string resolution_source = 6;  // free-form: "AP", "DDHQ", "MLB official", etc.
+  string display_title = 7;
+}
+
+// Fixed-point prices in basis points of $1 (1bp = $0.0001). Range 1..9999 for
+// tradeable binaries (clipped from [0.01, 0.99]). Stored as int32 to avoid
+// any FP drift across services.
+message Price {
+  int32 bps = 1;  // e.g. 5500 = 55¢ = 55% implied probability
+}
+
+message Quantity {
+  // Number of contracts. Kalshi: 0..2 decimals so we use int64 of milli-units.
+  int64 milli = 1;  // 1000 = 1 contract
+}
+
+message PriceLevel {
+  Price price = 1;
+  Quantity qty = 2;
+  int32 order_count = 3;  // optional
+}
+
+// A single L2 snapshot of one market. Used on connect.
+message BookSnapshot {
+  MarketRef market = 1;
+  int64 ts_ms = 2;
+  repeated PriceLevel bids = 3;  // descending price
+  repeated PriceLevel asks = 4;  // ascending price
+  string sequence = 5;
+}
+
+// Incremental update. Replace levels by price.
+message BookDelta {
+  MarketRef market = 1;
+  int64 ts_ms = 2;
+  repeated PriceLevel bid_changes = 3;  // qty=0 means delete
+  repeated PriceLevel ask_changes = 4;
+  string sequence = 5;
+}
+
+// Public trade print.
+message Trade {
+  MarketRef market = 1;
+  int64 ts_ms = 2;
+  Price price = 3;
+  Quantity qty = 4;
+  Side aggressor_side = 5;  // best-effort
+  string venue_trade_id = 6;
+}
+
+// Heartbeat / health from each connector.
+message VenueStatus {
+  Venue venue = 1;
+  int64 ts_ms = 2;
+  bool connected = 3;
+  bool can_trade = 4;
+  string last_error = 5;
+  int32 ws_subscriptions = 6;
+  int32 rate_limit_remaining = 7;
+}

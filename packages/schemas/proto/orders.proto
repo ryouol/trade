@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package trade.orders;
+
+import "marketdata.proto";
+
+option go_package = "github.com/ryouol/trade/gen/go/orders";
+
+enum TimeInForce {
+  TIF_UNSPECIFIED = 0;
+  TIF_GTC = 1;     // good-till-cancel
+  TIF_GTD = 2;     // good-till-date (set goodTillTs)
+  TIF_IOC = 3;     // immediate-or-cancel
+  TIF_FOK = 4;     // fill-or-kill
+  TIF_DAY = 5;     // PM US only
+}
+
+enum OrderType {
+  ORDER_TYPE_UNSPECIFIED = 0;
+  ORDER_TYPE_LIMIT = 1;
+  ORDER_TYPE_MARKET = 2;
+}
+
+enum Action {
+  ACTION_UNSPECIFIED = 0;
+  ACTION_BUY = 1;
+  ACTION_SELL = 2;
+}
+
+enum SelfTradePrevention {
+  STP_UNSPECIFIED = 0;
+  STP_TAKER_AT_CROSS = 1;  // cancel incoming taker (Kalshi default for MM)
+  STP_MAKER = 2;            // cancel resting maker (use for taker strategies)
+}
+
+enum Outcome {
+  OUTCOME_UNSPECIFIED = 0;
+  OUTCOME_YES = 1;
+  OUTCOME_NO = 2;
+}
+
+// OrderIntent is produced by a strategy and sent to the risk engine.
+// It is *not* yet a venue order — no exchange-side concepts here.
+message OrderIntent {
+  string intent_id = 1;             // UUIDv7 — also used as client_order_id
+  string strategy = 2;
+  trade.marketdata.MarketRef market = 3;
+  int64 ts_ms = 4;
+  Outcome outcome = 5;              // which leg of the binary
+  Action action = 6;
+  OrderType type = 7;
+  TimeInForce tif = 8;
+  trade.marketdata.Price limit_price = 9;
+  trade.marketdata.Quantity qty = 10;
+  bool post_only = 11;
+  SelfTradePrevention stp = 12;
+  bytes signal_snapshot_blob = 13;  // mirrored from StrategySignal
+}
+
+// Output of the risk engine.
+message RiskDecision {
+  string intent_id = 1;
+  bool approved = 2;
+  string reason = 3;                // human-readable for rejections
+  int64 ts_ms = 4;
+  trade.marketdata.Quantity approved_qty = 5;  // may be less than requested
+}
+
+// Venue-bound order, fully resolved. Executors translate this to the
+// venue-specific JSON / signed message.
+message VenueOrder {
+  string intent_id = 1;
+  string venue_order_id = 2;         // assigned by exchange after submit
+  trade.marketdata.Venue venue = 3;
+  trade.marketdata.MarketRef market = 4;
+  Outcome outcome = 5;
+  Action action = 6;
+  OrderType type = 7;
+  TimeInForce tif = 8;
+  trade.marketdata.Price limit_price = 9;
+  trade.marketdata.Quantity qty = 10;
+  bool post_only = 11;
+
+  // Kalshi-specific
+  SelfTradePrevention stp = 20;
+  bool cancel_order_on_pause = 21;
+  bool reduce_only = 22;
+  int32 subaccount = 23;
+  string order_group_id = 24;
+
+  // Polymarket-US-specific
+  bool manual_indicator_automatic = 30;  // ALWAYS true for bot orders
+  bool participate_dont_initiate = 31;   // post-only-like passive
+  int32 slippage_ticks = 32;             // for market orders only
+}
+
+message ExecutionReport {
+  string intent_id = 1;
+  string venue_order_id = 2;
+  int64 ts_ms = 3;
+  trade.marketdata.Venue venue = 4;
+  string status = 5;               // "accepted", "rejected", "filled", "canceled", "expired"
+  trade.marketdata.Quantity filled_qty = 6;
+  trade.marketdata.Quantity remaining_qty = 7;
+  trade.marketdata.Price average_fill_price = 8;
+  trade.marketdata.Price average_fee_paid = 9;  // signed; negative = rebate
+  string venue_error_code = 10;
+  string venue_error_message = 11;
+}
+
+message Fill {
+  string intent_id = 1;
+  string venue_order_id = 2;
+  string venue_fill_id = 3;
+  int64 ts_ms = 4;
+  trade.marketdata.Venue venue = 5;
+  trade.marketdata.MarketRef market = 6;
+  Outcome outcome = 7;
+  Action action = 8;
+  trade.marketdata.Price price = 9;
+  trade.marketdata.Quantity qty = 10;
+  trade.marketdata.Price fee = 11;    // signed
+  bool is_maker = 12;
+}
+
+message CancelRequest {
+  string intent_id = 1;             // original intent
+  string venue_order_id = 2;
+  trade.marketdata.Venue venue = 3;
+  int64 ts_ms = 4;
+}

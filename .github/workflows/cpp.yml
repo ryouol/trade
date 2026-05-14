@@ -1,0 +1,51 @@
+name: cpp
+
+on:
+  pull_request:
+    paths:
+      - "services/cpp/**"
+      - "packages/schemas/proto/**"
+      - "CMakeLists.txt"
+      - "conanfile.txt"
+      - ".clang-format"
+      - ".github/workflows/cpp.yml"
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protoc + clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake protobuf-compiler clang-format ninja-build
+
+      - name: Lint (clang-format check)
+        run: |
+          if [[ -d services/cpp ]]; then
+            find services/cpp -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \
+              | xargs --no-run-if-empty clang-format --dry-run --Werror
+          fi
+
+      - name: Set up conan
+        run: |
+          pip install --user conan
+          export PATH="$HOME/.local/bin:$PATH"
+          conan profile detect --force
+
+      - name: Install deps + build
+        run: |
+          conan install . --output-folder=build --build=missing -s build_type=Release
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+
+      - name: Test
+        run: |
+          if [[ -f build/CTestTestfile.cmake ]]; then
+            cd build && ctest --output-on-failure
+          fi

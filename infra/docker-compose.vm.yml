@@ -1,0 +1,128 @@
+# Docker Compose for the GCE VM (and your laptop for local dev).
+# Boot order:
+#   docker compose -f infra/docker-compose.vm.yml up -d nats clickhouse
+#   docker compose -f infra/docker-compose.vm.yml up -d --remove-orphans
+#
+# Production deployment uses the same compose file via systemd; see
+# infra/systemd/trading-stack.service.
+services:
+
+  nats:
+    image: nats:2.10-alpine
+    command:
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--max_payload=2MB"
+      - "--http_port=8222"
+    volumes:
+      - nats_data:/data
+    ports:
+      - "127.0.0.1:4222:4222"  # client
+      - "127.0.0.1:8222:8222"  # monitoring
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    environment:
+      CLICKHOUSE_DB: trade
+      CLICKHOUSE_USER: trade
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init.d:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:8123:8123"  # http
+      - "127.0.0.1:9000:9000"  # native
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # ---- Trading services (placeholders pointing to Artifact Registry images) ----
+  # Replace the `image:` with your Artifact Registry path once CI is publishing.
+
+  kalshi-connector:
+    image: ${ARTIFACT_REGISTRY:-us-east4-docker.pkg.dev/PROJECT/trade}/kalshi-connector:${TAG:-dev}
+    depends_on:
+      nats: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
+    environment:
+      NATS_URL: nats://nats:4222
+      KALSHI_BASE_URL: ${KALSHI_BASE_URL:-https://external-api.demo.kalshi.co}
+      KALSHI_WS_URL: ${KALSHI_WS_URL:-wss://demo-api.kalshi.co/trade-api/ws/v2}
+      KALSHI_KEY_ID: ${KALSHI_KEY_ID}
+      KALSHI_PRIVATE_KEY_PATH: /secrets/kalshi-private.pem
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - ./secrets:/secrets:ro
+    restart: always
+    profiles: ["trading"]
+
+  poly-us-connector:
+    image: ${ARTIFACT_REGISTRY:-us-east4-docker.pkg.dev/PROJECT/trade}/poly-us-connector:${TAG:-dev}
+    depends_on:
+      nats: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
+    environment:
+      NATS_URL: nats://nats:4222
+      POLY_US_REST_BASE: https://api.polymarket.us
+      POLY_US_KEY_ID: ${POLY_US_KEY_ID}
+      POLY_US_SECRET_B64: ${POLY_US_SECRET_B64}
+      POLY_US_TRADING_MODE: ${POLY_US_TRADING_MODE:-paper}
+    restart: always
+    profiles: ["trading"]
+
+  risk-engine:
+    image: ${ARTIFACT_REGISTRY:-us-east4-docker.pkg.dev/PROJECT/trade}/risk-engine:${TAG:-dev}
+    depends_on:
+      nats: { condition: service_healthy }
+    environment:
+      NATS_URL: nats://nats:4222
+      COMPLIANCE_PATH: /config/compliance.yaml
+      STRATEGY_PATH: /config/strategy.yaml
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+    volumes:
+      - ./config:/config:ro
+    restart: always
+    profiles: ["trading"]
+
+  book-builder:
+    image: ${ARTIFACT_REGISTRY:-us-east4-docker.pkg.dev/PROJECT/trade}/book-builder:${TAG:-dev}
+    depends_on:
+      nats: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
+    environment:
+      NATS_URL: nats://nats:4222
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    restart: always
+    profiles: ["trading"]
+
+  ws-gateway:
+    image: ${ARTIFACT_REGISTRY:-us-east4-docker.pkg.dev/PROJECT/trade}/ws-gateway:${TAG:-dev}
+    depends_on:
+      nats: { condition: service_healthy }
+    environment:
+      NATS_URL: nats://nats:4222
+      LISTEN_ADDR: :7070
+    ports:
+      - "127.0.0.1:7070:7070"
+    restart: always
+    profiles: ["trading"]
+
+volumes:
+  nats_data:
+  clickhouse_data:

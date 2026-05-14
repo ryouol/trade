@@ -1,0 +1,24 @@
+[Unit]
+Description=Trade stack (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/trade/compose
+EnvironmentFile=-/opt/trade/secrets/env
+ExecStartPre=/usr/bin/docker compose -f docker-compose.vm.yml pull
+ExecStart=/usr/bin/docker compose -f docker-compose.vm.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker-compose.vm.yml down
+Restart=on-failure
+RestartSec=10s
+
+# Watchdog: systemd will restart the unit if it fails. The risk-engine
+# emits to the kill switch via NATS on its own crash detection (covered
+# by the docker `restart: always` policy + a separate health-check sidecar).
+TimeoutStartSec=5min
+
+[Install]
+WantedBy=multi-user.target

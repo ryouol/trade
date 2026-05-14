@@ -1,0 +1,61 @@
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --fg: #e8e8e8;
+  --muted: #6b6b6b;
+  --accent: #4ade80;
+  --warn: #f59e0b;
+  --crit: #ef4444;
+  --card: #161616;
+  --border: #262626;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.kill {
+  background: var(--crit);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.kill:hover {
+  filter: brightness(1.1);
+}

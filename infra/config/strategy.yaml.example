@@ -1,0 +1,71 @@
+# Per-strategy parameters. Each strategy has its own mode and caps; mode
+# transitions (disabled → paper → shadow → live → scaled) require explicit
+# changes here (or via /api/trading-mode at runtime).
+
+strategies:
+
+  yesno_triangle_kalshi:
+    description: "Risk-free arb when c_yes + c_no > 1 + fees on Kalshi"
+    mode: disabled                # start disabled; promote after smoke tests
+    venues: [kalshi]
+    notional_cap_per_intent_usd: 100
+    min_edge_after_costs_bps: 5
+    self_trade_prevention: maker
+
+  mm_polyus:
+    description: "Avellaneda-Stoikov MM on Polymarket US (maker rebate)"
+    mode: disabled
+    venues: [polymarket_us]
+    notional_cap_per_intent_usd: 50
+    target_markets:
+      # Slugs to quote. Leave empty until live data identifies long-tail
+      # markets with no institutional MM.
+      - ""
+    gamma: 0.1
+    kappa_init: 100.0
+    sigma_window_ticks: 200
+    ewma_lambda: 0.94
+    requote_throttle_ms: 250
+    inventory_cap_contracts: 200
+    boundary_widen_threshold: 0.4
+    boundary_widen_multiplier: 1.5
+
+  cross_arb:
+    description: "Locked arb Kalshi YES + Polymarket US NO (or inverse)"
+    mode: disabled
+    venues: [kalshi, polymarket_us]
+    notional_cap_per_intent_usd: 200
+    rho_default: 0.97              # tightened per pair from pair_registry
+    min_expected_edge_bps: 30
+    worst_case_loss_cap_pct: 0.5   # of capital, per pair
+
+  statarb_ou:
+    description: "OU pair trading on matched markets"
+    mode: disabled
+    venues: [kalshi, polymarket_us]
+    notional_cap_per_intent_usd: 150
+    halflife_cap_seconds: 43200    # 12 hours
+    entry_z: 2.0
+    exit_z: 0.5
+    stop_z: 4.0
+    time_stop_multiplier: 2.0      # exit after 2 * halflife
+
+  llm_news_directional:
+    description: "Probability-delta signals from news with mechanism gating"
+    mode: disabled
+    venues: [kalshi, polymarket_us]
+    notional_cap_per_intent_usd: 75
+    min_mechanism_score: 0.6       # LLM must articulate transmission
+    signal_decay_seconds: 600
+    min_edge_after_costs_bps: 20
+
+# Global token-bucket throttles per venue. Risk engine enforces.
+throttles:
+  kalshi:
+    tier: basic                    # basic | advanced | premier | prime
+    reads_per_sec: 20
+    writes_per_sec: 10
+    batch_cancel_credit: 0.2       # rate-limit credit per cancel in batch
+  polymarket_us:
+    requests_per_sec: 20
+    burst_capacity: 20

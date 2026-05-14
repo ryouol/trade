@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package trade.signals;
+
+import "marketdata.proto";
+
+option go_package = "github.com/ryouol/trade/gen/go/signals";
+
+// Output of the fair-value aggregator. v is the precision-weighted Bayesian
+// estimate; sigma is the combined 1-sigma uncertainty.
+message FairValueUpdate {
+  trade.marketdata.MarketRef market = 1;
+  int64 ts_ms = 2;
+  trade.marketdata.Price v = 3;
+  int32 sigma_bps = 4;  // standard deviation in price bps
+  repeated SignalContribution contributions = 5;
+}
+
+message SignalContribution {
+  string source = 1;             // "microprice", "ofi", "llm_news", "smart_wallet", "cross_venue"
+  trade.marketdata.Price v = 2;
+  int32 sigma_bps = 3;
+  double precision_weight = 4;   // tau_i / sum(tau)
+}
+
+// Output of news-ingestor + signal-pipeline. The mechanism field is required:
+// the academic result (arxiv 2602.07048) only validates LLM signals when a
+// plausible transmission mechanism is articulated, not just sentiment.
+message NewsSignal {
+  string signal_id = 1;
+  int64 ts_ms = 2;
+  trade.marketdata.MarketRef market = 3;
+  int32 delta_p_bps = 4;          // signed probability delta in bps
+  int32 sigma_bps = 5;
+  int64 horizon_ms = 6;            // how long the signal lasts before decay
+  string mechanism = 7;            // e.g. "INJURY_REPORT", "FED_GUIDANCE"
+  double confidence_calibration = 8;  // historical Brier-score-derived
+  string source_url = 9;
+  string llm_model = 10;           // for reproducibility
+}
+
+// Onchain (PM intl only) smart-wallet activity. Defer in v1.
+message CopySignal {
+  string wallet = 1;
+  int64 ts_ms = 2;
+  trade.marketdata.MarketRef market = 3;
+  trade.marketdata.Price entry_price = 4;
+  int64 size_milli = 5;
+  double wallet_realized_sharpe = 6;
+  bytes tx_hash = 7;
+}
+
+// Pair-state for cross-venue stat-arb.
+message PairState {
+  string pair_id = 1;
+  trade.marketdata.MarketRef leg_a = 2;
+  trade.marketdata.MarketRef leg_b = 3;
+  int64 ts_ms = 4;
+  int32 x_bps = 5;        // spread c_a - c_b in bps
+  double z_score = 6;
+  double theta = 7;       // mean-reversion speed
+  double mu_bps = 8;
+  double sigma_x = 9;
+  double halflife_sec = 10;
+  bool stationary = 11;
+}
+
+// Top-level strategy intent emitted by strategy engines.
+message StrategySignal {
+  string strategy = 1;          // "mm_polyus", "yesno_triangle", "cross_arb", ...
+  trade.marketdata.MarketRef market = 2;
+  int64 ts_ms = 3;
+  string side_hint = 4;
+  int64 size_milli = 5;
+  trade.marketdata.Price limit_price = 6;
+  string rationale = 7;          // human-readable; goes to audit log
+  bytes signal_snapshot_blob = 8;  // serialized state at decision time
+}
