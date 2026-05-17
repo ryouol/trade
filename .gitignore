@@ -2,72 +2,15 @@
 .env
 .env.*
 !.env.example
-*.pem
-*.key
-*.p8
-*.p12
-*.pfx
-~/.kalshi/
-.kalshi/
-service-account*.json
-gcp-credentials*.json
+.vercel
 
 # Build outputs
-build/
-dist/
-out/
-target/
-node_modules/
 .next/
 .turbo/
 .cache/
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
-
-# C++
-*.o
-*.obj
-*.so
-*.dylib
-*.dll
-*.a
-*.lib
-*.exe
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-compile_commands.json
-
-# Generated protobuf
-*.pb.h
-*.pb.cc
-*.pb.go
-*_pb2.py
-*_pb2.pyi
-*_pb2_grpc.py
-packages/schemas/gen/
-
-# Data / research
-research/data/
-research/notebooks/.ipynb_checkpoints/
-*.parquet
-*.feather
-*.sqlite
-*.duckdb
-clickhouse_data/
-
-# Terraform
-*.tfstate
-*.tfstate.*
-.terraform/
-.terraform.lock.hcl
-terraform.tfvars
+out/
+dist/
+node_modules/
 
 # IDE / OS
 .vscode/
