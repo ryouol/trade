@@ -1,11 +1,10 @@
 // POST /api/trading-mode
-// Body: { strategy: string, mode: "disabled"|"paper"|"shadow"|"live", capital_cap_cents?: number }
+// Body: { strategy: string, mode: TradingMode, capital_cap_cents?: number }
 // Persists to Supabase strategy_modes table; risk-engine reads on next intent.
 
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const VALID_MODES = new Set(["disabled", "paper", "shadow", "live"]);
+import { supabase } from "../../../lib/supabase";
+import { TRADING_MODE_SET } from "../../../lib/venues";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -17,17 +16,13 @@ export async function POST(req: Request) {
   if (typeof strategy !== "string" || strategy.length === 0) {
     return NextResponse.json({ error: "strategy required" }, { status: 400 });
   }
-  if (typeof mode !== "string" || !VALID_MODES.has(mode)) {
-    return NextResponse.json({ error: `mode must be one of ${[...VALID_MODES].join(", ")}` }, { status: 400 });
+  if (typeof mode !== "string" || !TRADING_MODE_SET.has(mode)) {
+    return NextResponse.json(
+      { error: `mode must be one of ${[...TRADING_MODE_SET].join(", ")}` },
+      { status: 400 },
+    );
   }
 
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return NextResponse.json({ error: "supabase env not configured" }, { status: 500 });
-  }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
   const { error } = await supabase.from("strategy_modes").upsert({
     strategy,
     mode,

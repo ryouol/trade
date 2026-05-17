@@ -63,8 +63,10 @@ vercel env pull          # sync .env.local from Vercel
 vercel --prod            # manual production deploy
 ```
 
-The `vercel.json` at root tells Vercel to run `pnpm turbo run build
---filter=@trade/web` and serve from `apps/web/.next`.
+The Vercel project's **Root Directory** is set to `apps/web` (configured
+when we ran `vercel link` from inside `apps/web`). Vercel auto-detects
+Next.js, runs `pnpm install`, then `next build`. No `vercel.json` is
+required.
 
 ## Backend coordinates
 
